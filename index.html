@@ -1,274 +1,599 @@
 <!DOCTYPE html>
-<html lang="hu"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Közös Cica</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<style>
-:root{--bg:#fff7ef;--card:#fff;--tx:#3b2f2a;--mut:#8a7a70;--ac:#e8803a;--line:#f0e1d3;--bar:#f3e6da;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1e1a18;--card:#2a2522;--tx:#f3e9e1;--mut:#a89a90;--line:#3d3531;--bar:#3a322e;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#1e1a18;--card:#2a2522;--tx:#f3e9e1;--mut:#a89a90;--line:#3d3531;--bar:#3a322e;color-scheme:dark}
-*{box-sizing:border-box}html,body{margin:0}
-body{background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,sans-serif;min-height:100vh}
-#app{max-width:480px;margin:0 auto;padding:14px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;margin-bottom:12px}
-h1{font-size:20px;margin:4px 0 10px;text-align:center}
-.stage{user-select:none;-webkit-user-select:none;position:relative;height:250px;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:14px;background:linear-gradient(var(--bar),var(--card))}
-.stage svg,.stage img.skin{width:210px;height:210px}
-.stage img.skin{border-radius:50%;object-fit:cover;border:4px solid var(--ac)}
-.stage svg,#edw svg{image-rendering:pixelated}.dead{filter:grayscale(1)}.dead .cat{animation:none}.cat{animation:idle 3s ease-in-out infinite}
-@keyframes idle{50%{transform:translateY(-4px)}}
-.a-play .cat{animation:hop .5s 4}.a-pet .cat{animation:wig .4s 5}.a-feed .cat,.a-drink .cat{animation:nom .35s 5}.a-sleep .cat{animation:idle 1s 2}
-@keyframes hop{50%{transform:translateY(-40px)}}@keyframes wig{25%{transform:rotate(-5deg)}75%{transform:rotate(5deg)}}@keyframes nom{50%{transform:scale(1.06,.94)}}
-.fl{position:absolute;font-size:28px;animation:up 1.6s forwards;pointer-events:none}
-@keyframes up{to{transform:translateY(-170px);opacity:0}}
-.bar{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:14px}.bar span{width:92px}
-.bar i{flex:1;height:12px;background:var(--bar);border-radius:8px;overflow:hidden}.bar b{display:block;height:100%;border-radius:8px;transition:width .6s}
-.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-button{font:inherit;color:var(--tx);background:var(--bar);border:1px solid var(--line);border-radius:12px;padding:10px 4px;cursor:pointer}
-button:active{transform:scale(.96)}button.p{background:var(--ac);color:#fff;border:0;font-weight:600}
-input[type=text]{font:inherit;width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--tx)}
-.sw{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.sw u{width:34px;height:34px;border-radius:50%;border:3px solid transparent;cursor:pointer;display:block}.sw u.on{border-color:var(--ac)}
-.log{font-size:13px;color:var(--mut)}.log div{padding:2px 0}
-.top{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--mut)}
-.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#4caf50;margin-right:4px}
-.row{display:flex;gap:8px}.row>*{flex:1}small{color:var(--mut)}
-.skins{display:flex;gap:8px;overflow-x:auto;padding:4px 0}.skins img{width:46px;height:46px;border-radius:50%;object-fit:cover;border:3px solid transparent;cursor:pointer}.skins img.on{border-color:var(--ac)}
-#edw .cat{animation:none}#edw>div>svg{width:100%;height:auto;display:block}
-</style></head><body><div id="app"><div class="card">Betöltés…</div></div>
-<script>
-const COL={narancs:'#f0a04b',szürke:'#9aa0a6',fekete:'#3a3d42',fehér:'#f6f2ec',krém:'#e8d3a9',kékes:'#8fa8c8'};
-const ACC=['','🎩','🎀','👑','🕶️'];
-const RATE={h:1.2,t:1.6,j:0.8,e:0.6};
-const NAMES={h:'🍗 Étel',t:'💧 Víz',j:'💖 Boldogság',e:'⚡ Energia'};
-const BC={h:'#e8803a',t:'#4aa3df',j:'#e86a9a',e:'#e8c13a'};
-let db,user,ref,uid,S=null,loaded=false,joined=false,lastAnim=0,pendingColor='narancs',newCat=false;
-const $=s=>document.querySelector(s),app=$('#app');
-const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const clamp=v=>Math.max(0,Math.min(100,v));
-function cur(){const m=(Date.now()-S.t)/60000,r={};for(const k in RATE)r[k]=S.s[k]-RATE[k]*m;
-  const c=S.dead?S.cause:r.h<-40?'éhen halt':r.t<-30?'szomjan halt':r.j<-60?'bánatában halt meg':S.ill&&Date.now()-S.ill.t>36e5?'betegségben halt meg':null;
-  return{h:clamp(r.h),t:clamp(r.t),j:clamp(r.j),e:clamp(r.e),raw:r,fat:Math.max(0,(S.fat||0)-0.12*m),dose:Math.max(0,(S.dose||0)-m/8),ill:S.ill||null,dead:!!c,cause:c}}
-const mix=(h,t)=>{const n=parseInt(h.slice(1),16);return '#'+[16,8,0].map(x=>Math.round(((n>>x)&255)*(1-t)+255*t).toString(16).padStart(2,'0')).join('')};
-const mixTo=(a,b,t)=>{const p=h=>parseInt(h.slice(1),16),A=p(a),B=p(b);return '#'+[16,8,0].map(x=>Math.round(((A>>x)&255)*(1-t)+((B>>x)&255)*t).toString(16).padStart(2,'0')).join('')};
-function pix(color,st,acc){
-  const W=20,H=22,OY=3,g=Array.from({length:H},()=>Array(W).fill('.'));
-  const set=(x,y,c)=>{y+=OY;if(x>=0&&x<W&&y>=0&&y<H)g[y][x]=c},fill=(y,a,b,c)=>{for(let x=a;x<=b;x++)set(x,y,c)},E=(x,y,c)=>{set(x,y,c);set(19-x,y,c)};
-  const f=st.fat>=75?2:st.fat>=40?1:0,a=5-f,b=14+f;
-  fill(1,4,5,'B');fill(1,14,15,'B');fill(2,4,6,'B');fill(2,13,15,'B');set(5,2,'p');set(14,2,'p');
-  for(let y=3;y<=9;y++){const e=y==3||y==9;fill(y,e?4:3,e?15:16,'B')}
-  if(st.dead){E(5,5,'e');E(7,5,'e');E(6,6,'e');E(5,7,'e');E(7,7,'e')}
-  else if(st.e<20){E(6,6,'e');E(7,6,'e')}
-  else if(st.j>70&&!st.ill){E(5,6,'e');E(6,5,'e');E(7,6,'e')}
-  else{E(6,5,'e');E(7,5,'e');E(6,6,'e');E(7,6,'e');E(6,5,'w')}
-  set(9,7,'p');set(10,7,'p');
-  if(!st.dead&&!st.ill&&st.j>70){set(8,8,'m');set(11,8,'m');set(9,9,'m');set(10,9,'m')}
-  else if(!st.dead&&(st.ill||Math.min(st.h,st.t,st.j)<25)){set(9,8,'m');set(10,8,'m');set(8,9,'m');set(11,9,'m')}
-  else{set(9,8,'m');set(10,8,'m')}
-  for(let y=10;y<=14;y++)fill(y,a,b,'B');
-  for(let y=11;y<=14;y++)fill(y,a+2,b-2,'l');
-  fill(15,a,a+2,'B');fill(15,b-2,b,'B');
-  set(b+1,14,'B');set(b+2,14,'B');fill(11,b+2,b+2,'B');set(b+2,12,'B');set(b+2,13,'B');
-  if(st.ill&&!st.dead){set(17,4,'u');set(17,5,'u')}
-  if(st.dead)fill(0,7,12,'y');
-  if(acc=='🎩'){fill(-1,8,11,'k');fill(0,8,11,'k');fill(1,8,11,'r');fill(2,7,12,'k')}
-  if(acc=='🎀'){fill(10,8,11,'r');fill(11,9,10,'r')}
-  if(acc=='👑'){[7,9,10,12].forEach(x=>set(x,1,'y'));fill(2,7,12,'y')}
-  if(acc=='🕶️'){fill(5,5,8,'k');fill(6,5,8,'k');fill(5,11,14,'k');fill(6,11,14,'k');fill(5,9,10,'k')}
-  if(acc&&acc.length==440)for(let i=0;i<440;i++){const c=acc[i];if(c!='.')g[i/20|0][i%20]='c'+c}
-  const o=g.map(r=>r.slice());
-  for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(g[y][x]=='.'&&[[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy])=>{const v=(g[y+dy]||[])[x+dx];return v&&v!='.'}))o[y][x]='o';
-  const bc=st.dead?'#9a9a9a':st.ill?mixTo(color,'#8fd16a',.4):color,P={B:bc,l:mix(bc,.45),p:st.dead?'#bbb':'#f5a9b8',e:'#222',w:'#fff',m:'#222',o:'#2d2230',y:'#ffd23a',k:'#222',r:'#e0405a',u:'#6fc3ff',...Object.fromEntries(PAL.map((c,i)=>['c'+i.toString(16),c]))};
-  let r='';for(let y=0;y<H;y++)for(let x=0;x<W;x++){const c=o[y][x];if(c!='.')r+=`<rect x="${x}" y="${y}" width="1.03" height="1.03" fill="${P[c]}"/>`}
-  return `<svg viewBox="0 0 ${W} ${H}" class="cat" shape-rendering="crispEdges">${r}</svg>`}
-function render(){
-  if(!loaded){return}
-  if(newCat&&S&&!S.dead)newCat=false;
-  if(!S||newCat){app.innerHTML=`<h1>🐱 Közös Cica</h1><div class="card"><b>Új cica létrehozása</b><p><small>Neveld fel a cicát, aztán hívj meg egy társat, aki élőben veled együtt gondozza.</small></p><input id="nm" type="text" maxlength="16" placeholder="Cica neve"><div class="sw" id="sw">${Object.entries(COL).map(([k,v])=>`<u data-c="${k}" title="${k}" style="background:${v}" class="${k==pendingColor?'on':''}"></u>`).join('')}</div><button class="p" style="width:100%" id="mk">Létrehozás</button>${(newCat||!petId)?'<button style="width:100%;margin-top:8px" id="nc">← Mégse</button>':''}</div>`;
-    $('#sw').onclick=e=>{if(e.target.dataset.c){pendingColor=e.target.dataset.c;document.querySelectorAll('#sw u').forEach(u=>u.classList.toggle('on',u.dataset.c==pendingColor))}};
-    const nc=$('#nc');if(nc)nc.onclick=()=>{newCat=false;if(!S)listView();else render()};
-    $('#mk').onclick=()=>{const w=newCat&&S;newCat=false;ref.set({name:$('#nm').value.trim()||'Cirmi',color:pendingColor,skin:null,fat:0,skins:[],acc:0,...(w?{owner:S.owner,partner:S.partner,pn:S.pn}:{owner:uid,partner:null,pn:{o:me}}),t:Date.now(),s:{h:80,t:80,j:80,e:80},log:[{w:(w&&uid!==S.owner)?'p':'o',x:'létrehozta a cicát',t:Date.now()}],anim:null,made:Date.now()})};
-    return}
-  const role=uid===S.owner?'o':uid===S.partner?'p':null;
-  if(!role){
-    
-    app.innerHTML=`<h1>🐱 ${esc(S.name)}</h1><div class="card">Ennek a cicának már van két gondozója, ezért a hely betelt. 😿</div>`;return}
-  const st=cur(),anim=S.anim&&Date.now()-S.anim.t<3000?S.anim:null;wasDead=st.dead;wasIll=st.ill?st.ill.n:'';
-  const other=role=='o'?(S.partner?'Társ':null):'Gazdi';
-  app.innerHTML=`<h1>🐱 ${esc(S.name)}</h1>
-  <div class="top"><span><span class="dot"></span><u id="bk" style="cursor:pointer">← Cicáim</u> • ${esc(me)} • ${role=='o'?'gazdi':'társ'} • <u id="lo" style="cursor:pointer">kilépés</u></span><span>${S.partner?'2/2 gondozó':'1/2 gondozó'}</span></div>
-  <div class="card"><div class="stage ${st.dead?'dead':anim?'a-'+anim.k:''}" id="stage">${S.skin?`<img class="skin cat" src="${S.skin}">${ACC[S.acc]?`<span style="position:absolute;top:8px;font-size:38px">${ACC[S.acc]}</span>`:''}`:pix(COL[S.color]||COL.narancs,st,accOf(S.acc))}</div>
-  ${st.dead?'':'<div style="text-align:center;margin:6px 0"><small>🤚 Simogasd: húzd az ujjad (egérrel nyomd le és húzd) a cicán!</small></div>'}<div id="bars">${bars(st)}</div></div>
-  ${st.dead?`<div class="card" style="text-align:center"><b>🪦 ${esc(S.name)} ${esc(st.cause)}.</b><br><br><button class="p" id="rev">🐣 Új cica</button></div>`:`<div class="card"><div class="btns"><button data-a="feed">🍗 Etet</button><button data-a="drink">💧 Itat</button><button data-a="play">🧶 Játék</button><button data-a="sleep">😴 Altat</button><button data-a="acc">🎩 Kellék</button><button data-a="med">💊 Gyógyszer</button></div></div>`}
-  ${!S.partner&&role=='o'?`<div class="card"><b>Meghívó</b><p><small>Küldd el ezt a linket egy embernek. Az első, aki megnyitja és belép (regisztrál), lesz a társ gondozó.</small></p><button class="p" id="inv" style="width:100%">🔗 Link másolása</button></div>`:''}
+<html lang="hu">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/x-icon" href="love-always-wins.png">
+  <title>Nevelj Cicát!</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <style>
+    :root {
+      --bg: #fff7ef;
+      --card: #fff;
+      --tx: #3b2f2a;
+      --mut: #8a7a70;
+      --ac: #e8803a;
+      --line: #f0e1d3;
+      --bar: #f3e6da;
+      box-sizing: border-box;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      color-scheme: light
+    }
+
+    @media (prefers-color-scheme:dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #1e1a18;
+        --card: #2a2522;
+        --tx: #f3e9e1;
+        --mut: #a89a90;
+        --line: #3d3531;
+        --bar: #3a322e;
+        color-scheme: dark
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --bg: #1e1a18;
+      --card: #2a2522;
+      --tx: #f3e9e1;
+      --mut: #a89a90;
+      --line: #3d3531;
+      --bar: #3a322e;
+      color-scheme: dark
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html,
+    body {
+      margin: 0
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--tx);
+      font: 16px/1.4 system-ui, sans-serif;
+      min-height: 100vh
+    }
+
+    #app {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 14px
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+      margin-bottom: 12px
+    }
+
+    h1 {
+      font-size: 20px;
+      margin: 4px 0 10px;
+      text-align: center
+    }
+
+    .stage {
+      user-select: none;
+      -webkit-user-select: none;
+      position: relative;
+      height: 250px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-radius: 14px;
+      background: linear-gradient(var(--bar), var(--card))
+    }
+
+    .stage svg,
+    .stage img.skin {
+      width: 210px;
+      height: 210px
+    }
+
+    .stage img.skin {
+      border-radius: 50%;
+      object-fit: cover;
+      border: 4px solid var(--ac)
+    }
+
+    .stage svg,
+    #edw svg {
+      image-rendering: pixelated
+    }
+
+    .dead {
+      filter: grayscale(1)
+    }
+
+    .dead .cat {
+      animation: none
+    }
+
+    .cat {
+      animation: idle 3s ease-in-out infinite
+    }
+
+    @keyframes idle {
+      50% {
+        transform: translateY(-4px)
+      }
+    }
+
+    .a-play .cat {
+      animation: hop .5s 4
+    }
+
+    .a-pet .cat {
+      animation: wig .4s 5
+    }
+
+    .a-feed .cat,
+    .a-drink .cat {
+      animation: nom .35s 5
+    }
+
+    .a-sleep .cat {
+      animation: idle 1s 2
+    }
+
+    @keyframes hop {
+      50% {
+        transform: translateY(-40px)
+      }
+    }
+
+    @keyframes wig {
+      25% {
+        transform: rotate(-5deg)
+      }
+
+      75% {
+        transform: rotate(5deg)
+      }
+    }
+
+    @keyframes nom {
+      50% {
+        transform: scale(1.06, .94)
+      }
+    }
+
+    .fl {
+      position: absolute;
+      font-size: 28px;
+      animation: up 1.6s forwards;
+      pointer-events: none
+    }
+
+    @keyframes up {
+      to {
+        transform: translateY(-170px);
+        opacity: 0
+      }
+    }
+
+    .bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 6px 0;
+      font-size: 14px
+    }
+
+    .bar span {
+      width: 92px
+    }
+
+    .bar i {
+      flex: 1;
+      height: 12px;
+      background: var(--bar);
+      border-radius: 8px;
+      overflow: hidden
+    }
+
+    .bar b {
+      display: block;
+      height: 100%;
+      border-radius: 8px;
+      transition: width .6s
+    }
+
+    .btns {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px
+    }
+
+    button {
+      font: inherit;
+      color: var(--tx);
+      background: var(--bar);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 4px;
+      cursor: pointer
+    }
+
+    button:active {
+      transform: scale(.96)
+    }
+
+    button.p {
+      background: var(--ac);
+      color: #fff;
+      border: 0;
+      font-weight: 600
+    }
+
+    input[type=text] {
+      font: inherit;
+      width: 100%;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      color: var(--tx)
+    }
+
+    .sw {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0
+    }
+
+    .sw u {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      cursor: pointer;
+      display: block
+    }
+
+    .sw u.on {
+      border-color: var(--ac)
+    }
+
+    .log {
+      font-size: 13px;
+      color: var(--mut)
+    }
+
+    .log div {
+      padding: 2px 0
+    }
+
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: var(--mut)
+    }
+
+    .dot {
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #4caf50;
+      margin-right: 4px
+    }
+
+    .row {
+      display: flex;
+      gap: 8px
+    }
+
+    .row>* {
+      flex: 1
+    }
+
+    small {
+      color: var(--mut)
+    }
+
+    .skins {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 4px 0
+    }
+
+    .skins img {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid transparent;
+      cursor: pointer
+    }
+
+    .skins img.on {
+      border-color: var(--ac)
+    }
+
+    #edw .cat {
+      animation: none
+    }
+
+    #edw>div>svg {
+      width: 100%;
+      height: auto;
+      display: block
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <div class="card">Betöltés…</div>
+  </div>
+  <script>
+    const COL = { narancs: '#f0a04b', szürke: '#9aa0a6', fekete: '#3a3d42', fehér: '#f6f2ec', krém: '#e8d3a9', kékes: '#8fa8c8' };
+    const ACC = ['', '🎩', '🎀', '👑', '🕶️'];
+    const RATE = { h: 1.2, t: 1.6, j: 0.8, e: 0.6 };
+    const NAMES = { h: '🍗 Étel', t: '💧 Víz', j: '💖 Boldogság', e: '⚡ Energia' };
+    const BC = { h: '#e8803a', t: '#4aa3df', j: '#e86a9a', e: '#e8c13a' };
+    let db, user, ref, uid, S = null, loaded = false, joined = false, lastAnim = 0, pendingColor = 'narancs', newCat = false;
+    const $ = s => document.querySelector(s), app = $('#app');
+    const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const clamp = v => Math.max(0, Math.min(100, v));
+    function cur() {
+      const m = (Date.now() - S.t) / 60000, r = {}; for (const k in RATE) r[k] = S.s[k] - RATE[k] * m;
+      const c = S.dead ? S.cause : r.h < -40 ? 'éhen halt' : r.t < -30 ? 'szomjan halt' : r.j < -60 ? 'bánatában halt meg' : S.ill && Date.now() - S.ill.t > 36e5 ? 'betegségben halt meg' : null;
+      return { h: clamp(r.h), t: clamp(r.t), j: clamp(r.j), e: clamp(r.e), raw: r, fat: Math.max(0, (S.fat || 0) - 0.12 * m), dose: Math.max(0, (S.dose || 0) - m / 8), ill: S.ill || null, dead: !!c, cause: c }
+    }
+    const mix = (h, t) => { const n = parseInt(h.slice(1), 16); return '#' + [16, 8, 0].map(x => Math.round(((n >> x) & 255) * (1 - t) + 255 * t).toString(16).padStart(2, '0')).join('') };
+    const mixTo = (a, b, t) => { const p = h => parseInt(h.slice(1), 16), A = p(a), B = p(b); return '#' + [16, 8, 0].map(x => Math.round(((A >> x) & 255) * (1 - t) + ((B >> x) & 255) * t).toString(16).padStart(2, '0')).join('') };
+    function pix(color, st, acc) {
+      const W = 20, H = 22, OY = 3, g = Array.from({ length: H }, () => Array(W).fill('.'));
+      const set = (x, y, c) => { y += OY; if (x >= 0 && x < W && y >= 0 && y < H) g[y][x] = c }, fill = (y, a, b, c) => { for (let x = a; x <= b; x++)set(x, y, c) }, E = (x, y, c) => { set(x, y, c); set(19 - x, y, c) };
+      const f = st.fat >= 75 ? 2 : st.fat >= 40 ? 1 : 0, a = 5 - f, b = 14 + f;
+      fill(1, 4, 5, 'B'); fill(1, 14, 15, 'B'); fill(2, 4, 6, 'B'); fill(2, 13, 15, 'B'); set(5, 2, 'p'); set(14, 2, 'p');
+      for (let y = 3; y <= 9; y++) { const e = y == 3 || y == 9; fill(y, e ? 4 : 3, e ? 15 : 16, 'B') }
+      if (st.dead) { E(5, 5, 'e'); E(7, 5, 'e'); E(6, 6, 'e'); E(5, 7, 'e'); E(7, 7, 'e') }
+      else if (st.e < 20) { E(6, 6, 'e'); E(7, 6, 'e') }
+      else if (st.j > 70 && !st.ill) { E(5, 6, 'e'); E(6, 5, 'e'); E(7, 6, 'e') }
+      else { E(6, 5, 'e'); E(7, 5, 'e'); E(6, 6, 'e'); E(7, 6, 'e'); E(6, 5, 'w') }
+      set(9, 7, 'p'); set(10, 7, 'p');
+      if (!st.dead && !st.ill && st.j > 70) { set(8, 8, 'm'); set(11, 8, 'm'); set(9, 9, 'm'); set(10, 9, 'm') }
+      else if (!st.dead && (st.ill || Math.min(st.h, st.t, st.j) < 25)) { set(9, 8, 'm'); set(10, 8, 'm'); set(8, 9, 'm'); set(11, 9, 'm') }
+      else { set(9, 8, 'm'); set(10, 8, 'm') }
+      for (let y = 10; y <= 14; y++)fill(y, a, b, 'B');
+      for (let y = 11; y <= 14; y++)fill(y, a + 2, b - 2, 'l');
+      fill(15, a, a + 2, 'B'); fill(15, b - 2, b, 'B');
+      set(b + 1, 14, 'B'); set(b + 2, 14, 'B'); fill(11, b + 2, b + 2, 'B'); set(b + 2, 12, 'B'); set(b + 2, 13, 'B');
+      if (st.ill && !st.dead) { set(17, 4, 'u'); set(17, 5, 'u') }
+      if (st.dead) fill(0, 7, 12, 'y');
+      if (acc == '🎩') { fill(-1, 8, 11, 'k'); fill(0, 8, 11, 'k'); fill(1, 8, 11, 'r'); fill(2, 7, 12, 'k') }
+      if (acc == '🎀') { fill(10, 8, 11, 'r'); fill(11, 9, 10, 'r') }
+      if (acc == '👑') { [7, 9, 10, 12].forEach(x => set(x, 1, 'y')); fill(2, 7, 12, 'y') }
+      if (acc == '🕶️') { fill(5, 5, 8, 'k'); fill(6, 5, 8, 'k'); fill(5, 11, 14, 'k'); fill(6, 11, 14, 'k'); fill(5, 9, 10, 'k') }
+      if (acc && acc.length == 440) for (let i = 0; i < 440; i++) { const c = acc[i]; if (c != '.') g[i / 20 | 0][i % 20] = 'c' + c }
+      const o = g.map(r => r.slice());
+      for (let y = 0; y < H; y++)for (let x = 0; x < W; x++)if (g[y][x] == '.' && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => { const v = (g[y + dy] || [])[x + dx]; return v && v != '.' })) o[y][x] = 'o';
+      const bc = st.dead ? '#9a9a9a' : st.ill ? mixTo(color, '#8fd16a', .4) : color, P = { B: bc, l: mix(bc, .45), p: st.dead ? '#bbb' : '#f5a9b8', e: '#222', w: '#fff', m: '#222', o: '#2d2230', y: '#ffd23a', k: '#222', r: '#e0405a', u: '#6fc3ff', ...Object.fromEntries(PAL.map((c, i) => ['c' + i.toString(16), c])) };
+      let r = ''; for (let y = 0; y < H; y++)for (let x = 0; x < W; x++) { const c = o[y][x]; if (c != '.') r += `<rect x="${x}" y="${y}" width="1.03" height="1.03" fill="${P[c]}"/>` }
+      return `<svg viewBox="0 0 ${W} ${H}" class="cat" shape-rendering="crispEdges">${r}</svg>`
+    }
+    function render() {
+      if (!loaded) { return }
+      if (newCat && S && !S.dead) newCat = false;
+      if (!S || newCat) {
+        app.innerHTML = `<h1>🐱 Közös Cica</h1><div class="card"><b>Új cica létrehozása</b><p><small>Neveld fel a cicát, aztán hívj meg egy társat, aki élőben veled együtt gondozza.</small></p><input id="nm" type="text" maxlength="16" placeholder="Cica neve"><div class="sw" id="sw">${Object.entries(COL).map(([k, v]) => `<u data-c="${k}" title="${k}" style="background:${v}" class="${k == pendingColor ? 'on' : ''}"></u>`).join('')}</div><button class="p" style="width:100%" id="mk">Létrehozás</button>${(newCat || !petId) ? '<button style="width:100%;margin-top:8px" id="nc">← Mégse</button>' : ''}</div>`;
+        $('#sw').onclick = e => { if (e.target.dataset.c) { pendingColor = e.target.dataset.c; document.querySelectorAll('#sw u').forEach(u => u.classList.toggle('on', u.dataset.c == pendingColor)) } };
+        const nc = $('#nc'); if (nc) nc.onclick = () => { newCat = false; if (!S) listView(); else render() };
+        $('#mk').onclick = () => { const w = newCat && S; newCat = false; ref.set({ name: $('#nm').value.trim() || 'Cirmi', color: pendingColor, skin: null, fat: 0, skins: [], acc: 0, ...(w ? { owner: S.owner, partner: S.partner, pn: S.pn } : { owner: uid, partner: null, pn: { o: me } }), t: Date.now(), s: { h: 80, t: 80, j: 80, e: 80 }, log: [{ w: (w && uid !== S.owner) ? 'p' : 'o', x: 'létrehozta a cicát', t: Date.now() }], anim: null, made: Date.now() }) };
+        return
+      }
+      const role = uid === S.owner ? 'o' : uid === S.partner ? 'p' : null;
+      if (!role) {
+
+        app.innerHTML = `<h1>🐱 ${esc(S.name)}</h1><div class="card">Ennek a cicának már van két gondozója, ezért a hely betelt. 😿</div>`; return
+      }
+      const st = cur(), anim = S.anim && Date.now() - S.anim.t < 3000 ? S.anim : null; wasDead = st.dead; wasIll = st.ill ? st.ill.n : '';
+      const other = role == 'o' ? (S.partner ? 'Társ' : null) : 'Gazdi';
+      app.innerHTML = `<h1>🐱 ${esc(S.name)}</h1>
+  <div class="top"><span><span class="dot"></span><u id="bk" style="cursor:pointer">← Cicáim</u> • ${esc(me)} • ${role == 'o' ? 'gazdi' : 'társ'} • <u id="lo" style="cursor:pointer">kilépés</u></span><span>${S.partner ? '2/2 gondozó' : '1/2 gondozó'}</span></div>
+  <div class="card"><div class="stage ${st.dead ? 'dead' : anim ? 'a-' + anim.k : ''}" id="stage">${S.skin ? `<img class="skin cat" src="${S.skin}">${ACC[S.acc] ? `<span style="position:absolute;top:8px;font-size:38px">${ACC[S.acc]}</span>` : ''}` : pix(COL[S.color] || COL.narancs, st, accOf(S.acc))}</div>
+  ${st.dead ? '' : '<div style="text-align:center;margin:6px 0"><small>🤚 Simogasd: húzd az ujjad (egérrel nyomd le és húzd) a cicán!</small></div>'}<div id="bars">${bars(st)}</div></div>
+  ${st.dead ? `<div class="card" style="text-align:center"><b>🪦 ${esc(S.name)} ${esc(st.cause)}.</b><br><br><button class="p" id="rev">🐣 Új cica</button></div>` : `<div class="card"><div class="btns"><button data-a="feed">🍗 Etet</button><button data-a="drink">💧 Itat</button><button data-a="play">🧶 Játék</button><button data-a="sleep">😴 Altat</button><button data-a="acc">🎩 Kellék</button><button data-a="med">💊 Gyógyszer</button></div></div>`}
+  ${!S.partner && role == 'o' ? `<div class="card"><b>Meghívó</b><p><small>Küldd el ezt a linket egy embernek. Az első, aki megnyitja és belép (regisztrál), lesz a társ gondozó.</small></p><button class="p" id="inv" style="width:100%">🔗 Link másolása</button></div>` : ''}
   ${edCard()}<div class="card"><b>Megjelenés</b><div class="row" style="margin:8px 0"><input id="rn" type="text" maxlength="16" value="${esc(S.name)}"><button id="rb" style="flex:0 0 90px">Átnevez</button></div>
-  <div class="sw" id="sw">${Object.entries(COL).map(([k,v])=>`<u data-c="${k}" title="${k}" style="background:${v}" class="${!S.skin&&k==S.color?'on':''}"></u>`).join('')}</div>
-  <div class="skins" id="skins">${(S.skins||[]).map((u,i)=>`<img src="${u}" data-i="${i}" class="${S.skin==u?'on':''}">`).join('')}</div>
+  <div class="sw" id="sw">${Object.entries(COL).map(([k, v]) => `<u data-c="${k}" title="${k}" style="background:${v}" class="${!S.skin && k == S.color ? 'on' : ''}"></u>`).join('')}</div>
+  <div class="skins" id="skins">${(S.skins || []).map((u, i) => `<img src="${u}" data-i="${i}" class="${S.skin == u ? 'on' : ''}">`).join('')}</div>
   <button id="up" style="width:100%">📷 Saját cicakép feltöltése</button><input id="f" type="file" accept="image/*" hidden></div>
-  <div class="card log"><b style="color:var(--tx)">Napló</b>${S.log.map(l=>`<div>${l.w==role?'Te':nmOf(l.w)} ${esc(l.x)} <small>(${new Date(l.t).toLocaleTimeString('hu',{hour:'2-digit',minute:'2-digit'})})</small></div>`).join('')}</div>`;
-  if(anim&&anim.t!==lastAnim){lastAnim=anim.t;fly({feed:'🍗',drink:'💧',pet:'💗',play:'🧶',sleep:'💤',acc:'✨',med:'💊'}[anim.k])}
-  const bt=app.querySelector('.btns');if(bt)bt.onclick=e=>{const a=e.target.dataset.a;if(a)act(a,role)};const lo=$('#lo');if(lo)lo.onclick=logout;const bk=$('#bk');if(bk)bk.onclick=listView;wireEd();wirePet(role);const rv=$('#rev');if(rv)rv.onclick=revive;
-  $('#sw').onclick=e=>{const c=e.target.dataset.c;if(c)ref.update({color:c,skin:null})};
-  $('#rb').onclick=()=>{const n=$('#rn').value.trim();if(n)ref.update({name:n})};
-  $('#skins').onclick=e=>{const i=e.target.dataset.i;if(i!=null)ref.update({skin:S.skins[i]})};
-  $('#up').onclick=()=>$('#f').click();
-  $('#f').onchange=e=>upload(e.target.files[0]);
-  const inv=$('#inv');if(inv)inv.onclick=async()=>{try{await navigator.clipboard.writeText(location.origin+location.pathname+'?join='+S.code);inv.textContent='✅ Kimásolva!'}catch{prompt('Másold ki a linket:',location.origin+location.pathname+'?join='+S.code)}};
-}
-function bars0(st){const f=st.fat>=75?'🐷 Kövér!':st.fat>=40?'😸 Dundi':'😺 Karcsú';return Object.keys(RATE).map(k=>`<div class="bar"><span>${NAMES[k]}</span><i><b style="width:${st[k]}%;background:${BC[k]}"></b></i></div>`).join('')+`<div class="bar"><span>Alkat</span>${f}${st.fat>=75?' <small>– ne etesd tovább, veszélyes!</small>':''}</div>`}
-function fly(e,n=4){const s=$('#stage');if(!s)return;for(let i=0;i<n;i++){const f=document.createElement('span');f.className='fl';f.textContent=e;f.style.left=(25+Math.random()*50)+'%';f.style.top='60%';f.style.animationDelay=i*.25+'s';s.appendChild(f)}}
-function act(k,role){
-  const st=cur();if(st.dead)return;
-  const s={...st.raw},T={feed:'etette a cicát',drink:'megitatta a cicát',pet:'megsimogatta a cicát',play:'játszott a cicával',sleep:'lefektette a cicát',acc:'új kellékkel dobta fel a cicát',med:S.ill?'gyógyszert adott a cicának 💊':'felesleges gyógyszert adott a cicának 💊'};
-  let fat=st.fat,txt=T[k],ill=S.ill?{...S.ill}:null,dose=st.dose,cause=null,cured=false;
-  if(k=='feed'){if(s.h>=90){fat+=14;txt='túletette a cicát 🍔'}s.h=Math.min(130,s.h+30)}
-  if(k=='drink')s.t=Math.min(100,s.t+35);
-  if(k=='pet')s.j=Math.min(100,s.j+18);
-  if(k=='play'){s.j=Math.min(100,s.j+25);s.e-=15;s.h-=8;fat=Math.max(0,fat-10)}
-  if(k=='sleep')s.e=Math.min(100,s.e+40);
-  if(k=='med'){dose+=1;if(dose>3)cause='túladagolásban halt meg';else if(ill){ill.p=(ill.p||0)+1;if(ill.p>=ill.need){ill=null;cured=true}}}
-  s.e=Math.max(0,s.e);
-  if(fat>=100)cause='túlevésbe halt bele';
-  const now=Date.now(),log=[{w:role,x:txt,t:now},...S.log];
-  if(cured)log.unshift({w:role,x:'– a cica meggyógyult ✅',t:now});
-  if(cause)log.unshift({w:role,x:'– a cica '+cause+' 🪦',t:now});
-  ref.update({s,t:now,fat,dose,ill,...(cured?{lastIll:now}:{}),acc:k=='acc'?(S.acc+1)%(ACC.length+(S.custom||[]).length):S.acc,anim:{k,t:now},log:log.slice(0,8),...(cause?{dead:true,cause}:{})});
-}
-function revive(){newCat=true;render()}
-function medInfo(st){let h='';
-  if(st.ill){const left=Math.max(0,60-Math.floor((Date.now()-st.ill.t)/60000));h+=`<div style="margin:8px 0;padding:8px;border-radius:10px;background:var(--bar)">🤒 <b>${esc(st.ill.n)}</b><br><small>Gyógyszer: ${st.ill.p||0}/${st.ill.need} adag • kb. ${left} perc van a kezelésre</small></div>`}
-  const d=st.dose;if(d>0.05||st.ill)h+=`<div class="bar"><span>💊 Szint</span><i><b style="width:${Math.min(100,d/3*100)}%;background:${d>2?'#d33':'#7b5cff'}"></b></i></div>${d>2?'<small>⚠️ Újabb adag halálos lehet! Várj egy kicsit.</small>':''}`;
-  return h}
-function bars(st){return bars0(st)+medInfo(st)}
-function upload(file){
-  if(!file)return;const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=c.height=200;const x=c.getContext('2d'),m=Math.min(img.width,img.height);x.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,200,200);
-    const u=c.toDataURL('image/jpeg',.8);ref.update({skin:u,skins:[...(S.skins||[]),u].slice(-6)})};img.src=URL.createObjectURL(file)}
-const DIS=[{n:'Macskanátha 🤧',need:2},{n:'Hasmenés 🤢',need:3},{n:'Bolhás bőrgyulladás 🐜',need:2},{n:'Szőrlabda-fennakadás 🧶',need:3},{n:'Tüdőgyulladás 🌡️',need:4},{n:'Fülgyulladás 👂',need:2},{n:'Macskainfluenza 🥶',need:3}];
-let wasDead=false,wasIll='';setInterval(()=>{if(!S||!$('#bars')||pet.down)return;const st=cur();
-  if(!st.dead&&!S.ill&&(uid===S.owner||uid===S.partner)&&Date.now()-(S.lastIll||S.made||0)>6e5){const lo=Math.min(st.h,st.t,st.j)<30;if(Math.random()<0.006+(lo?0.02:0)+(st.fat>=75?0.015:0)){const d=DIS[Math.random()*DIS.length|0];ref.update({ill:{n:d.n,need:d.need,p:0,t:Date.now()},lastIll:Date.now()});return}}
-  if(st.dead!==wasDead||(st.ill?st.ill.n:'')!==wasIll)render();else $('#bars').innerHTML=bars(st)},5000);
-const PAL=['#e0405a','#ff9f43','#ffd23a','#4cd964','#2aa5ff','#7b5cff','#ff7ac6','#ffffff','#222222','#8b5a2b','#9aa0a6','#00c2a8'];
-let edOpen=false,ed={px:Array(440).fill('.'),c:'0'};
-const accOf=i=>i<ACC.length?ACC[i]:((S.custom||[])[i-ACC.length]||{}).px;
-const thumb=px=>{let r='';for(let i=0;i<440;i++){const c=px[i];if(c!='.')r+=`<rect x="${i%20}" y="${i/20|0}" width="1.03" height="1.03" fill="${PAL[parseInt(c,16)]}"/>`}return `<svg viewBox="0 0 20 22" width="44" height="48" shape-rendering="crispEdges">${r}</svg>`};
-function edCard(){
-  const cs=S.custom||[];
-  const saved=cs.length?`<div class="skins" id="cs">${cs.map((c,i)=>`<span data-w="${i}" style="position:relative;cursor:pointer;background:var(--bar);border-radius:10px;padding:2px;outline:${S.acc==ACC.length+i?'3px solid var(--ac)':'none'}">${thumb(c.px)}<b data-d="${i}" style="position:absolute;top:-4px;right:-2px;font-size:12px;color:#d33">✕</b></span>`).join('')}</div>`:'';
-  if(!edOpen)return `<div class="card"><b>🎨 Saját kellékek</b>${saved}<button id="eo" style="width:100%;margin-top:8px">✏️ Új kellék rajzolása</button></div>`;
-  const st=cur();let cells='';
-  for(let i=0;i<440;i++)cells+=`<rect id="c${i}" x="${i%20}" y="${i/20|0}" width="1" height="1" fill="${ed.px[i]=='.'?'transparent':PAL[parseInt(ed.px[i],16)]}" stroke="rgba(128,128,128,.3)" stroke-width=".04"/>`;
-  return `<div class="card"><b>🎨 Kellék rajzolása</b><p><small>Rajzolj közvetlenül a cicára: koppints vagy húzd az ujjad. A kész kellék a cicán jelenik meg, és mindketten használhatjátok.</small></p>
-  <div id="edw" style="position:relative;width:280px;max-width:100%;margin:0 auto"><div style="opacity:.5">${pix(COL[S.color]||COL.narancs,{...st,dead:false,fat:0},'')}</div><svg id="eg" viewBox="0 0 20 22" style="position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair">${cells}</svg></div>
-  <div class="sw" id="pal">${PAL.map((c,i)=>`<u data-p="${i.toString(16)}" style="background:${c}" class="${ed.c==i.toString(16)?'on':''}"></u>`).join('')}<u data-p="." title="radír" style="background:var(--bar);text-align:center;line-height:28px;font-size:16px">🧽</u></div>
+  <div class="card log"><b style="color:var(--tx)">Napló</b>${S.log.map(l => `<div>${l.w == role ? 'Te' : nmOf(l.w)} ${esc(l.x)} <small>(${new Date(l.t).toLocaleTimeString('hu', { hour: '2-digit', minute: '2-digit' })})</small></div>`).join('')}</div>`;
+      if (anim && anim.t !== lastAnim) { lastAnim = anim.t; fly({ feed: '🍗', drink: '💧', pet: '💗', play: '🧶', sleep: '💤', acc: '✨', med: '💊' }[anim.k]) }
+      const bt = app.querySelector('.btns'); if (bt) bt.onclick = e => { const a = e.target.dataset.a; if (a) act(a, role) }; const lo = $('#lo'); if (lo) lo.onclick = logout; const bk = $('#bk'); if (bk) bk.onclick = listView; wireEd(); wirePet(role); const rv = $('#rev'); if (rv) rv.onclick = revive;
+      $('#sw').onclick = e => { const c = e.target.dataset.c; if (c) ref.update({ color: c, skin: null }) };
+      $('#rb').onclick = () => { const n = $('#rn').value.trim(); if (n) ref.update({ name: n }) };
+      $('#skins').onclick = e => { const i = e.target.dataset.i; if (i != null) ref.update({ skin: S.skins[i] }) };
+      $('#up').onclick = () => $('#f').click();
+      $('#f').onchange = e => upload(e.target.files[0]);
+      const inv = $('#inv'); if (inv) inv.onclick = async () => { try { await navigator.clipboard.writeText(location.origin + location.pathname + '?join=' + S.code); inv.textContent = '✅ Kimásolva!' } catch { prompt('Másold ki a linket:', location.origin + location.pathname + '?join=' + S.code) } };
+    }
+    function bars0(st) { const f = st.fat >= 75 ? '🐷 Kövér!' : st.fat >= 40 ? '😸 Dundi' : '😺 Karcsú'; return Object.keys(RATE).map(k => `<div class="bar"><span>${NAMES[k]}</span><i><b style="width:${st[k]}%;background:${BC[k]}"></b></i></div>`).join('') + `<div class="bar"><span>Alkat</span>${f}${st.fat >= 75 ? ' <small>– ne etesd tovább, veszélyes!</small>' : ''}</div>` }
+    function fly(e, n = 4) { const s = $('#stage'); if (!s) return; for (let i = 0; i < n; i++) { const f = document.createElement('span'); f.className = 'fl'; f.textContent = e; f.style.left = (25 + Math.random() * 50) + '%'; f.style.top = '60%'; f.style.animationDelay = i * .25 + 's'; s.appendChild(f) } }
+    function act(k, role) {
+      const st = cur(); if (st.dead) return;
+      const s = { ...st.raw }, T = { feed: 'etette a cicát', drink: 'megitatta a cicát', pet: 'megsimogatta a cicát', play: 'játszott a cicával', sleep: 'lefektette a cicát', acc: 'új kellékkel dobta fel a cicát', med: S.ill ? 'gyógyszert adott a cicának 💊' : 'felesleges gyógyszert adott a cicának 💊' };
+      let fat = st.fat, txt = T[k], ill = S.ill ? { ...S.ill } : null, dose = st.dose, cause = null, cured = false;
+      if (k == 'feed') { if (s.h >= 90) { fat += 14; txt = 'túletette a cicát 🍔' } s.h = Math.min(130, s.h + 30) }
+      if (k == 'drink') s.t = Math.min(100, s.t + 35);
+      if (k == 'pet') s.j = Math.min(100, s.j + 18);
+      if (k == 'play') { s.j = Math.min(100, s.j + 25); s.e -= 15; s.h -= 8; fat = Math.max(0, fat - 10) }
+      if (k == 'sleep') s.e = Math.min(100, s.e + 40);
+      if (k == 'med') { dose += 1; if (dose > 3) cause = 'túladagolásban halt meg'; else if (ill) { ill.p = (ill.p || 0) + 1; if (ill.p >= ill.need) { ill = null; cured = true } } }
+      s.e = Math.max(0, s.e);
+      if (fat >= 100) cause = 'túlevésbe halt bele';
+      const now = Date.now(), log = [{ w: role, x: txt, t: now }, ...S.log];
+      if (cured) log.unshift({ w: role, x: '– a cica meggyógyult ✅', t: now });
+      if (cause) log.unshift({ w: role, x: '– a cica ' + cause + ' 🪦', t: now });
+      ref.update({ s, t: now, fat, dose, ill, ...(cured ? { lastIll: now } : {}), acc: k == 'acc' ? (S.acc + 1) % (ACC.length + (S.custom || []).length) : S.acc, anim: { k, t: now }, log: log.slice(0, 8), ...(cause ? { dead: true, cause } : {}) });
+    }
+    function revive() { newCat = true; render() }
+    function medInfo(st) {
+      let h = '';
+      if (st.ill) { const left = Math.max(0, 60 - Math.floor((Date.now() - st.ill.t) / 60000)); h += `<div style="margin:8px 0;padding:8px;border-radius:10px;background:var(--bar)">🤒 <b>${esc(st.ill.n)}</b><br><small>Gyógyszer: ${st.ill.p || 0}/${st.ill.need} adag • kb. ${left} perc van a kezelésre</small></div>` }
+      const d = st.dose; if (d > 0.05 || st.ill) h += `<div class="bar"><span>💊 Szint</span><i><b style="width:${Math.min(100, d / 3 * 100)}%;background:${d > 2 ? '#d33' : '#7b5cff'}"></b></i></div>${d > 2 ? '<small>⚠️ Újabb adag halálos lehet! Várj egy kicsit.</small>' : ''}`;
+      return h
+    }
+    function bars(st) { return bars0(st) + medInfo(st) }
+    function upload(file) {
+      if (!file) return; const img = new Image(); img.onload = () => {
+        const c = document.createElement('canvas'); c.width = c.height = 200; const x = c.getContext('2d'), m = Math.min(img.width, img.height); x.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, 200, 200);
+        const u = c.toDataURL('image/jpeg', .8); ref.update({ skin: u, skins: [...(S.skins || []), u].slice(-6) })
+      }; img.src = URL.createObjectURL(file)
+    }
+    const DIS = [{ n: 'Macskanátha 🤧', need: 2 }, { n: 'Hasmenés 🤢', need: 3 }, { n: 'Bolhás bőrgyulladás 🐜', need: 2 }, { n: 'Szőrlabda-fennakadás 🧶', need: 3 }, { n: 'Tüdőgyulladás 🌡️', need: 4 }, { n: 'Fülgyulladás 👂', need: 2 }, { n: 'Macskainfluenza 🥶', need: 3 }];
+    let wasDead = false, wasIll = ''; setInterval(() => {
+      if (!S || !$('#bars') || pet.down) return; const st = cur();
+      if (!st.dead && !S.ill && (uid === S.owner || uid === S.partner) && Date.now() - (S.lastIll || S.made || 0) > 6e5) { const lo = Math.min(st.h, st.t, st.j) < 30; if (Math.random() < 0.006 + (lo ? 0.02 : 0) + (st.fat >= 75 ? 0.015 : 0)) { const d = DIS[Math.random() * DIS.length | 0]; ref.update({ ill: { n: d.n, need: d.need, p: 0, t: Date.now() }, lastIll: Date.now() }); return } }
+      if (st.dead !== wasDead || (st.ill ? st.ill.n : '') !== wasIll) render(); else $('#bars').innerHTML = bars(st)
+    }, 5000);
+    const PAL = ['#e0405a', '#ff9f43', '#ffd23a', '#4cd964', '#2aa5ff', '#7b5cff', '#ff7ac6', '#ffffff', '#222222', '#8b5a2b', '#9aa0a6', '#00c2a8'];
+    let edOpen = false, ed = { px: Array(440).fill('.'), c: '0' };
+    const accOf = i => i < ACC.length ? ACC[i] : ((S.custom || [])[i - ACC.length] || {}).px;
+    const thumb = px => { let r = ''; for (let i = 0; i < 440; i++) { const c = px[i]; if (c != '.') r += `<rect x="${i % 20}" y="${i / 20 | 0}" width="1.03" height="1.03" fill="${PAL[parseInt(c, 16)]}"/>` } return `<svg viewBox="0 0 20 22" width="44" height="48" shape-rendering="crispEdges">${r}</svg>` };
+    function edCard() {
+      const cs = S.custom || [];
+      const saved = cs.length ? `<div class="skins" id="cs">${cs.map((c, i) => `<span data-w="${i}" style="position:relative;cursor:pointer;background:var(--bar);border-radius:10px;padding:2px;outline:${S.acc == ACC.length + i ? '3px solid var(--ac)' : 'none'}">${thumb(c.px)}<b data-d="${i}" style="position:absolute;top:-4px;right:-2px;font-size:12px;color:#d33">✕</b></span>`).join('')}</div>` : '';
+      if (!edOpen) return `<div class="card"><b>🎨 Saját kellékek</b>${saved}<button id="eo" style="width:100%;margin-top:8px">✏️ Új kellék rajzolása</button></div>`;
+      const st = cur(); let cells = '';
+      for (let i = 0; i < 440; i++)cells += `<rect id="c${i}" x="${i % 20}" y="${i / 20 | 0}" width="1" height="1" fill="${ed.px[i] == '.' ? 'transparent' : PAL[parseInt(ed.px[i], 16)]}" stroke="rgba(128,128,128,.3)" stroke-width=".04"/>`;
+      return `<div class="card"><b>🎨 Kellék rajzolása</b><p><small>Rajzolj közvetlenül a cicára: koppints vagy húzd az ujjad. A kész kellék a cicán jelenik meg, és mindketten használhatjátok.</small></p>
+  <div id="edw" style="position:relative;width:280px;max-width:100%;margin:0 auto"><div style="opacity:.5">${pix(COL[S.color] || COL.narancs, { ...st, dead: false, fat: 0 }, '')}</div><svg id="eg" viewBox="0 0 20 22" style="position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair">${cells}</svg></div>
+  <div class="sw" id="pal">${PAL.map((c, i) => `<u data-p="${i.toString(16)}" style="background:${c}" class="${ed.c == i.toString(16) ? 'on' : ''}"></u>`).join('')}<u data-p="." title="radír" style="background:var(--bar);text-align:center;line-height:28px;font-size:16px">🧽</u></div>
   <div class="row"><button id="ec">🗑️ Törlés</button><button id="ex">Mégse</button><button class="p" id="es">💾 Mentés</button></div></div>`}
-function wireEd(){
-  const eo=$('#eo');if(eo)eo.onclick=()=>{edOpen=true;render()};
-  const cs=$('#cs');if(cs)cs.onclick=e=>{const d=e.target.dataset.d;if(d!=null){ref.update({acc:0,custom:S.custom.filter((_,i)=>i!=d)});return}const w=e.target.closest('[data-w]');if(w)ref.update({acc:ACC.length+ +w.dataset.w})};
-  const eg=$('#eg');if(!eg)return;
-  $('#ex').onclick=()=>{edOpen=false;render()};
-  $('#ec').onclick=()=>{ed.px.fill('.');render()};
-  $('#pal').onclick=e=>{const p=e.target.dataset.p;if(p!=null){ed.c=p;document.querySelectorAll('#pal u').forEach(u=>u.classList.toggle('on',u.dataset.p==p))}};
-  let down=false;
-  const paint=e=>{const r=eg.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)/r.width*20),y=Math.floor((e.clientY-r.top)/r.height*22);if(x<0||y<0||x>19||y>21)return;const i=y*20+x;if(ed.px[i]==ed.c)return;ed.px[i]=ed.c;$('#c'+i).setAttribute('fill',ed.c=='.'?'transparent':PAL[parseInt(ed.c,16)])};
-  eg.onpointerdown=e=>{down=true;eg.setPointerCapture(e.pointerId);paint(e)};eg.onpointermove=e=>{if(down)paint(e)};eg.onpointerup=()=>down=false;
-  $('#es').onclick=()=>{if(!ed.px.some(c=>c!='.'))return;const arr=[...(S.custom||[]),{px:ed.px.join('')}].slice(-6);ref.update({custom:arr,acc:ACC.length+arr.length-1});ed.px.fill('.');edOpen=false;render()};
-}
-const pet={down:false,dirty:false,acc:0,pend:0,sess:0,lw:0,lx:0,ly:0};
-function petWrite(role,final){
-  if(!S)return;const st=cur();if(st.dead){pet.pend=0;pet.sess=0;return}
-  const now=Date.now(),upd={};
-  if(pet.pend>0){const s={...st.raw};s.j=Math.min(100,s.j+pet.pend);Object.assign(upd,{s,t:now,fat:st.fat,dose:st.dose,anim:{k:'pet',t:now}});pet.pend=0;pet.lw=now}
-  if(final&&pet.sess>0){upd.log=[{w:role,x:'megsimogatta a cicát 💗',t:now},...S.log].slice(0,8);pet.sess=0}
-  if(Object.keys(upd).length)ref.update(upd)
-}
-function wirePet(role){
-  const stg=$('#stage');if(!stg||cur().dead)return;
-  stg.style.cursor='grab';stg.style.touchAction='none';
-  stg.onpointerdown=e=>{pet.down=true;pet.lx=e.clientX;pet.ly=e.clientY;pet.acc=0;stg.setPointerCapture(e.pointerId);stg.style.cursor='grabbing'};
-  stg.onpointermove=e=>{if(!pet.down)return;pet.acc+=Math.hypot(e.clientX-pet.lx,e.clientY-pet.ly);pet.lx=e.clientX;pet.ly=e.clientY;let ch=false;
-    while(pet.acc>=100){pet.acc-=100;pet.pend+=4;pet.sess++;fly('💗',1);ch=true}
-    if(ch){const q=cur();q.j=Math.min(100,q.j+pet.pend);const b=$('#bars');if(b)b.innerHTML=bars(q)}
-    if(pet.pend>0&&Date.now()-pet.lw>1500)petWrite(role,false)};
-  const end=()=>{if(!pet.down)return;pet.down=false;petWrite(role,true);if(pet.dirty){pet.dirty=false;render()}};
-  stg.onpointerup=end;stg.onpointercancel=end;
-}
-const SUPABASE_URL='https://jnieiubuwyyomrurereu.supabase.co',SUPABASE_ANON_KEY='sb_publishable_0RrDqOd1caMyC66xzDvoHQ_KJ4ZV9PC';
-let sb=null,petId=null,chan=null,me='',names={},pendingJoin=new URLSearchParams(location.search).get('join');
-const nmOf=w=>(S&&S.pn&&S.pn[w])||(w=='o'?'Gazdi':'Társ');
-async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
-const emailOf=async n=>(await sha('n:'+n.trim().toLowerCase())).slice(0,32)+'@cica.app';
-const hu=e=>{const m=e&&e.message||String(e);return /already registered/i.test(m)?'Ez a név már foglalt.':/Invalid login/i.test(m)?'Rossz név vagy jelszó.':/duplicate|unique/i.test(m)?'Ez a név már foglalt.':m};
-const wait=m=>{app.innerHTML='<div class="card">'+m+'</div>'};
-function leave(){if(chan){sb.removeChannel(chan);chan=null}petId=null;S=null;loaded=false;newCat=false}
-ref={
-  async update(u){S={...S,...u};if(pet.down)pet.dirty=true;else render();const{error}=await sb.rpc('patch_pet',{pid:petId,patch:u});if(error)console.error(error)},
-  async set(obj){const data={...obj};['owner','partner','pn','code'].forEach(k=>delete data[k]);
-    if(!petId){const code=Math.random().toString(36).slice(2,10);const{data:row,error}=await sb.from('pets').insert({owner:uid,data,invite_code:code}).select().single();if(error){alert(error.message);return}await openPet(row.id)}
-    else{S={...data,owner:S.owner,partner:S.partner,pn:S.pn,code:S.code};render();await sb.from('pets').update({data}).eq('id',petId)}}
-};
-function authView(msg){
-  leave();app.innerHTML=`<h1>🐱 Közös Cica</h1><div class="card"><b>Belépés / regisztráció</b><p><small>Új vagy? Adj meg egy szabad nevet és egy jelszót, és nyomd meg a Regisztrációt.</small></p><input id="ln" type="text" maxlength="16" placeholder="Név" autocomplete="username"><div style="height:8px"></div><input id="lp" type="password" maxlength="64" placeholder="Jelszó (min. 6 karakter)" autocomplete="current-password"><p id="lm" style="color:#d33;font-size:14px;min-height:20px">${esc(msg||'')}</p><div class="row"><button class="p" id="li">Belépés</button><button id="lr">Regisztráció</button></div></div>`;
-  const say=t=>{$('#lm').textContent=t};
-  const run=async signup=>{
-    const name=$('#ln').value.trim(),pw=$('#lp').value;
-    if(!name||pw.length<6){say('Adj meg nevet és legalább 6 karakteres jelszót.');return}
-    $('#li').disabled=$('#lr').disabled=true;
-    try{
-      const email=await emailOf(name);
-      if(signup){
-        const{data,error}=await sb.auth.signUp({email,password:pw});if(error)throw error;
-        if(!data.session)throw new Error('A Supabase-ben ki kell kapcsolni az "Confirm email" opciót (lásd README).');
-        const{error:pe}=await sb.from('profiles').insert({id:data.user.id,name});
-        if(pe){await sb.auth.signOut();throw pe}
-      }else{const{error}=await sb.auth.signInWithPassword({email,password:pw});if(error)throw error}
-      await afterLogin();
-    }catch(e){say(hu(e));$('#li').disabled=$('#lr').disabled=false}
-  };
-  $('#li').onclick=()=>run(false);$('#lr').onclick=()=>run(true);$('#lp').onkeydown=e=>{if(e.key=='Enter')run(false)};
-}
-async function afterLogin(){
-  const{data:{user}}=await sb.auth.getUser();uid=user.id;
-  const{data:p}=await sb.from('profiles').select('name').eq('id',uid).maybeSingle();me=p?p.name:'?';names[uid]=me;
-  if(pendingJoin){const c=pendingJoin;pendingJoin=null;history.replaceState(null,'',location.pathname);await joinPet(c);return}
-  listView();
-}
-async function logout(){await sb.auth.signOut();authView()}
-async function joinPet(code){
-  wait('Csatlakozás…');
-  const{data,error}=await sb.rpc('join_pet',{code});
-  if(error){alert(error.message);return listView()}
-  if(data.partner===uid&&data.owner!==uid){const log=[{w:'p',x:'csatlakozott a játékhoz',t:Date.now()},...((data.data||{}).log||[])].slice(0,8);await sb.rpc('patch_pet',{pid:data.id,patch:{log}})}
-  openPet(data.id);
-}
-async function listView(){
-  leave();wait('Betöltés…');
-  const{data,error}=await sb.from('pets').select('id,owner,partner,data').order('created_at');
-  if(error){app.innerHTML='<div class="card">Hiba: '+esc(error.message)+'</div>';return}
-  app.innerHTML=`<h1>🐱 Cicáim</h1><div class="top" style="margin-bottom:8px"><span>${esc(me)}</span><u id="lo" style="cursor:pointer">kilépés</u></div>`+
-   (data.length?data.map(p=>`<div class="card" data-id="${p.id}" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center"><span><b>${esc(p.data.name||'?')}</b> ${p.data.dead?'🪦':''}<br><small>${p.owner===uid?'gazdi':'társ'} • ${p.partner?'2 gondozó':'1 gondozó'}</small></span><span>▶</span></div>`).join(''):'<div class="card"><small>Még nincs cicád. Hozz létre egyet, vagy nyiss meg egy meghívó linket!</small></div>')+
-   `<button class="p" id="nw" style="width:100%">➕ Új cica</button>`;
-  app.onclick=e=>{const c=e.target.closest('[data-id]');if(c)openPet(c.dataset.id)};
-  $('#lo').onclick=logout;
-  $('#nw').onclick=()=>{petId=null;S=null;loaded=true;newCat=false;render()};
-}
-async function loadNames(row){
-  const ids=[row.owner,row.partner].filter(x=>x&&!names[x]);if(!ids.length)return;
-  const{data}=await sb.from('profiles').select('id,name').in('id',ids);(data||[]).forEach(p=>names[p.id]=p.name);
-}
-function applyRow(row){
-  S={...row.data,owner:row.owner,partner:row.partner,code:row.invite_code,pn:{o:names[row.owner],p:names[row.partner]}};loaded=true;
-  if(pet.down){pet.dirty=true;return}render();
-}
-async function openPet(id){
-  leave();app.onclick=null;wait('Betöltés…');petId=id;
-  const{data:row,error}=await sb.from('pets').select('*').eq('id',id).single();
-  if(error){alert(error.message);return listView()}
-  await loadNames(row);applyRow(row);
-  chan=sb.channel('pet-'+id).on('postgres_changes',{event:'UPDATE',schema:'public',table:'pets',filter:'id=eq.'+id},async p=>{await loadNames(p.new);applyRow(p.new)}).subscribe();
-}
-(async()=>{
-  if(typeof supabase==='undefined'||SUPABASE_URL.startsWith('IDE_')){app.innerHTML='<div class="card"><b>Beállítás szükséges</b><p>Írd be az <code>index.html</code> elején a <code>SUPABASE_URL</code> és <code>SUPABASE_ANON_KEY</code> értékét (lásd README.md).</p></div>';return}
-  sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-  const{data:{session}}=await sb.auth.getSession();
-  if(session)await afterLogin();else authView();
-})();
-</script></body></html>
+    function wireEd() {
+      const eo = $('#eo'); if (eo) eo.onclick = () => { edOpen = true; render() };
+      const cs = $('#cs'); if (cs) cs.onclick = e => { const d = e.target.dataset.d; if (d != null) { ref.update({ acc: 0, custom: S.custom.filter((_, i) => i != d) }); return } const w = e.target.closest('[data-w]'); if (w) ref.update({ acc: ACC.length + +w.dataset.w }) };
+      const eg = $('#eg'); if (!eg) return;
+      $('#ex').onclick = () => { edOpen = false; render() };
+      $('#ec').onclick = () => { ed.px.fill('.'); render() };
+      $('#pal').onclick = e => { const p = e.target.dataset.p; if (p != null) { ed.c = p; document.querySelectorAll('#pal u').forEach(u => u.classList.toggle('on', u.dataset.p == p)) } };
+      let down = false;
+      const paint = e => { const r = eg.getBoundingClientRect(), x = Math.floor((e.clientX - r.left) / r.width * 20), y = Math.floor((e.clientY - r.top) / r.height * 22); if (x < 0 || y < 0 || x > 19 || y > 21) return; const i = y * 20 + x; if (ed.px[i] == ed.c) return; ed.px[i] = ed.c; $('#c' + i).setAttribute('fill', ed.c == '.' ? 'transparent' : PAL[parseInt(ed.c, 16)]) };
+      eg.onpointerdown = e => { down = true; eg.setPointerCapture(e.pointerId); paint(e) }; eg.onpointermove = e => { if (down) paint(e) }; eg.onpointerup = () => down = false;
+      $('#es').onclick = () => { if (!ed.px.some(c => c != '.')) return; const arr = [...(S.custom || []), { px: ed.px.join('') }].slice(-6); ref.update({ custom: arr, acc: ACC.length + arr.length - 1 }); ed.px.fill('.'); edOpen = false; render() };
+    }
+    const pet = { down: false, dirty: false, acc: 0, pend: 0, sess: 0, lw: 0, lx: 0, ly: 0 };
+    function petWrite(role, final) {
+      if (!S) return; const st = cur(); if (st.dead) { pet.pend = 0; pet.sess = 0; return }
+      const now = Date.now(), upd = {};
+      if (pet.pend > 0) { const s = { ...st.raw }; s.j = Math.min(100, s.j + pet.pend); Object.assign(upd, { s, t: now, fat: st.fat, dose: st.dose, anim: { k: 'pet', t: now } }); pet.pend = 0; pet.lw = now }
+      if (final && pet.sess > 0) { upd.log = [{ w: role, x: 'megsimogatta a cicát 💗', t: now }, ...S.log].slice(0, 8); pet.sess = 0 }
+      if (Object.keys(upd).length) ref.update(upd)
+    }
+    function wirePet(role) {
+      const stg = $('#stage'); if (!stg || cur().dead) return;
+      stg.style.cursor = 'grab'; stg.style.touchAction = 'none';
+      stg.onpointerdown = e => { pet.down = true; pet.lx = e.clientX; pet.ly = e.clientY; pet.acc = 0; stg.setPointerCapture(e.pointerId); stg.style.cursor = 'grabbing' };
+      stg.onpointermove = e => {
+        if (!pet.down) return; pet.acc += Math.hypot(e.clientX - pet.lx, e.clientY - pet.ly); pet.lx = e.clientX; pet.ly = e.clientY; let ch = false;
+        while (pet.acc >= 100) { pet.acc -= 100; pet.pend += 4; pet.sess++; fly('💗', 1); ch = true }
+        if (ch) { const q = cur(); q.j = Math.min(100, q.j + pet.pend); const b = $('#bars'); if (b) b.innerHTML = bars(q) }
+        if (pet.pend > 0 && Date.now() - pet.lw > 1500) petWrite(role, false)
+      };
+      const end = () => { if (!pet.down) return; pet.down = false; petWrite(role, true); if (pet.dirty) { pet.dirty = false; render() } };
+      stg.onpointerup = end; stg.onpointercancel = end;
+    }
+    const SUPABASE_URL = 'https://jnieiubuwyyomrurereu.supabase.co', SUPABASE_ANON_KEY = 'sb_publishable_0RrDqOd1caMyC66xzDvoHQ_KJ4ZV9PC';
+    let sb = null, petId = null, chan = null, me = '', names = {}, pendingJoin = new URLSearchParams(location.search).get('join');
+    const nmOf = w => (S && S.pn && S.pn[w]) || (w == 'o' ? 'Gazdi' : 'Társ');
+    async function sha(t) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('') }
+    const emailOf = async n => (await sha('n:' + n.trim().toLowerCase())).slice(0, 32) + '@cica.app';
+    const hu = e => { const m = e && e.message || String(e); return /already registered/i.test(m) ? 'Ez a név már foglalt.' : /Invalid login/i.test(m) ? 'Rossz név vagy jelszó.' : /duplicate|unique/i.test(m) ? 'Ez a név már foglalt.' : m };
+    const wait = m => { app.innerHTML = '<div class="card">' + m + '</div>' };
+    function leave() { if (chan) { sb.removeChannel(chan); chan = null } petId = null; S = null; loaded = false; newCat = false }
+    ref = {
+      async update(u) { S = { ...S, ...u }; if (pet.down) pet.dirty = true; else render(); const { error } = await sb.rpc('patch_pet', { pid: petId, patch: u }); if (error) console.error(error) },
+      async set(obj) {
+        const data = { ...obj };['owner', 'partner', 'pn', 'code'].forEach(k => delete data[k]);
+        if (!petId) { const code = Math.random().toString(36).slice(2, 10); const { data: row, error } = await sb.from('pets').insert({ owner: uid, data, invite_code: code }).select().single(); if (error) { alert(error.message); return } await openPet(row.id) }
+        else { S = { ...data, owner: S.owner, partner: S.partner, pn: S.pn, code: S.code }; render(); await sb.from('pets').update({ data }).eq('id', petId) }
+      }
+    };
+    function authView(msg) {
+      leave(); app.innerHTML = `<h1>🐱 Közös Cica</h1><div class="card"><b>Belépés / regisztráció</b><p><small>Új vagy? Adj meg egy szabad nevet és egy jelszót, és nyomd meg a Regisztrációt.</small></p><input id="ln" type="text" maxlength="16" placeholder="Név" autocomplete="username"><div style="height:8px"></div><input id="lp" type="password" maxlength="64" placeholder="Jelszó (min. 6 karakter)" autocomplete="current-password"><p id="lm" style="color:#d33;font-size:14px;min-height:20px">${esc(msg || '')}</p><div class="row"><button class="p" id="li">Belépés</button><button id="lr">Regisztráció</button></div></div>`;
+      const say = t => { $('#lm').textContent = t };
+      const run = async signup => {
+        const name = $('#ln').value.trim(), pw = $('#lp').value;
+        if (!name || pw.length < 6) { say('Adj meg nevet és legalább 6 karakteres jelszót.'); return }
+        $('#li').disabled = $('#lr').disabled = true;
+        try {
+          const email = await emailOf(name);
+          if (signup) {
+            const { data, error } = await sb.auth.signUp({ email, password: pw }); if (error) throw error;
+            if (!data.session) throw new Error('A Supabase-ben ki kell kapcsolni az "Confirm email" opciót (lásd README).');
+            const { error: pe } = await sb.from('profiles').insert({ id: data.user.id, name });
+            if (pe) { await sb.auth.signOut(); throw pe }
+          } else { const { error } = await sb.auth.signInWithPassword({ email, password: pw }); if (error) throw error }
+          await afterLogin();
+        } catch (e) { say(hu(e)); $('#li').disabled = $('#lr').disabled = false }
+      };
+      $('#li').onclick = () => run(false); $('#lr').onclick = () => run(true); $('#lp').onkeydown = e => { if (e.key == 'Enter') run(false) };
+    }
+    async function afterLogin() {
+      const { data: { user } } = await sb.auth.getUser(); uid = user.id;
+      const { data: p } = await sb.from('profiles').select('name').eq('id', uid).maybeSingle(); me = p ? p.name : '?'; names[uid] = me;
+      if (pendingJoin) { const c = pendingJoin; pendingJoin = null; history.replaceState(null, '', location.pathname); await joinPet(c); return }
+      listView();
+    }
+    async function logout() { await sb.auth.signOut(); authView() }
+    async function joinPet(code) {
+      wait('Csatlakozás…');
+      const { data, error } = await sb.rpc('join_pet', { code });
+      if (error) { alert(error.message); return listView() }
+      if (data.partner === uid && data.owner !== uid) { const log = [{ w: 'p', x: 'csatlakozott a játékhoz', t: Date.now() }, ...((data.data || {}).log || [])].slice(0, 8); await sb.rpc('patch_pet', { pid: data.id, patch: { log } }) }
+      openPet(data.id);
+    }
+    async function listView() {
+      leave(); wait('Betöltés…');
+      const { data, error } = await sb.from('pets').select('id,owner,partner,data').order('created_at');
+      if (error) { app.innerHTML = '<div class="card">Hiba: ' + esc(error.message) + '</div>'; return }
+      app.innerHTML = `<h1>🐱 Cicáim</h1><div class="top" style="margin-bottom:8px"><span>${esc(me)}</span><u id="lo" style="cursor:pointer">kilépés</u></div>` +
+        (data.length ? data.map(p => `<div class="card" data-id="${p.id}" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center"><span><b>${esc(p.data.name || '?')}</b> ${p.data.dead ? '🪦' : ''}<br><small>${p.owner === uid ? 'gazdi' : 'társ'} • ${p.partner ? '2 gondozó' : '1 gondozó'}</small></span><span>▶</span></div>`).join('') : '<div class="card"><small>Még nincs cicád. Hozz létre egyet, vagy nyiss meg egy meghívó linket!</small></div>') +
+        `<button class="p" id="nw" style="width:100%">➕ Új cica</button>`;
+      app.onclick = e => { const c = e.target.closest('[data-id]'); if (c) openPet(c.dataset.id) };
+      $('#lo').onclick = logout;
+      $('#nw').onclick = () => { petId = null; S = null; loaded = true; newCat = false; render() };
+    }
+    async function loadNames(row) {
+      const ids = [row.owner, row.partner].filter(x => x && !names[x]); if (!ids.length) return;
+      const { data } = await sb.from('profiles').select('id,name').in('id', ids); (data || []).forEach(p => names[p.id] = p.name);
+    }
+    function applyRow(row) {
+      S = { ...row.data, owner: row.owner, partner: row.partner, code: row.invite_code, pn: { o: names[row.owner], p: names[row.partner] } }; loaded = true;
+      if (pet.down) { pet.dirty = true; return } render();
+    }
+    async function openPet(id) {
+      leave(); app.onclick = null; wait('Betöltés…'); petId = id;
+      const { data: row, error } = await sb.from('pets').select('*').eq('id', id).single();
+      if (error) { alert(error.message); return listView() }
+      await loadNames(row); applyRow(row);
+      chan = sb.channel('pet-' + id).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pets', filter: 'id=eq.' + id }, async p => { await loadNames(p.new); applyRow(p.new) }).subscribe();
+    }
+    (async () => {
+      if (typeof supabase === 'undefined' || SUPABASE_URL.startsWith('IDE_')) { app.innerHTML = '<div class="card"><b>Beállítás szükséges</b><p>Írd be az <code>index.html</code> elején a <code>SUPABASE_URL</code> és <code>SUPABASE_ANON_KEY</code> értékét (lásd README.md).</p></div>'; return }
+      sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) await afterLogin(); else authView();
+    })();
+  </script>
+</body>
+
+</html>
