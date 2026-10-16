@@ -528,7 +528,7 @@
       }
     };
     function authView(msg) {
-      leave(); app.innerHTML = `<h1>🐱 Közös Cica</h1><div class="card"><b>Belépés / regisztráció</b><p><small>Új vagy? Adj meg egy szabad nevet és egy jelszót, és nyomd meg a Regisztrációt.</small></p><input id="ln" type="text" maxlength="16" placeholder="Név" autocomplete="username"><div style="height:8px"></div><input id="lp" type="password" maxlength="64" placeholder="Jelszó (min. 6 karakter)" autocomplete="current-password"><p id="lm" style="color:#d33;font-size:14px;min-height:20px">${esc(msg || '')}</p><div class="row"><button class="p" id="li">Belépés</button><button id="lr">Regisztráció</button></div></div>`;
+      leave(); app.innerHTML = `<h1>🐱 Közös Cica</h1><div class="card"><b>Belépés / regisztráció</b><p><small>Új vagy? Adj meg egy szabad nevet és egy jelszót, és nyomd meg a Regisztrációt.</small></p><input id="ln" type="text" maxlength="16" placeholder="Név" autocomplete="username"><div style="height:8px"></div><input id="lp" type="password" style="color:#d33;font-size:14px;min-height:20px; background:#1E1A18 border-color:#1E1A18" maxlength="64" placeholder="Jelszó (min. 6 karakter)" autocomplete="current-password"><p id="lm" style="color:#d33;font-size:14px;min-height:20px">${esc(msg || '')}</p><div class="row"><button class="p" id="li">Belépés</button><button id="lr">Regisztráció</button></div></div>`;
       const say = t => { $('#lm').textContent = t };
       const run = async signup => {
         const name = $('#ln').value.trim(), pw = $('#lp').value;
