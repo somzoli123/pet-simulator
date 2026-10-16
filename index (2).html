@@ -191,7 +191,7 @@ function wirePet(role){
   const end=()=>{if(!pet.down)return;pet.down=false;petWrite(role,true);if(pet.dirty){pet.dirty=false;render()}};
   stg.onpointerup=end;stg.onpointercancel=end;
 }
-const SUPABASE_URL='IDE_MASOLD_A_PROJECT_URL-T',SUPABASE_ANON_KEY='IDE_MASOLD_AZ_ANON_KEY-T';
+const SUPABASE_URL='https://jnieiubuwyyomrurereu.supabase.co',SUPABASE_ANON_KEY='sb_publishable_0RrDqOd1caMyC66xzDvoHQ_KJ4ZV9PC';
 let sb=null,petId=null,chan=null,me='',names={},pendingJoin=new URLSearchParams(location.search).get('join');
 const nmOf=w=>(S&&S.pn&&S.pn[w])||(w=='o'?'Gazdi':'Társ');
 async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
