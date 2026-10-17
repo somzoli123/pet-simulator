@@ -343,7 +343,7 @@
   <script>
     const COL = { narancs: '#f0a04b', szürke: '#9aa0a6', fekete: '#3a3d42', fehér: '#f6f2ec', krém: '#e8d3a9', kékes: '#8fa8c8' };
     const ACC = ['', '🎩', '🎀', '👑', '🕶️'];
-    const RATE = { h: 1.2, t: 1.6, j: 0.8, e: 0.6 };
+    const RATE = { h: 0.2, t: 0.25, j: 0.15, e: 0.2 };
     const NAMES = { h: '🍗 Étel', t: '💧 Víz', j: '💖 Boldogság', e: '⚡ Energia' };
     const BC = { h: '#e8803a', t: '#4aa3df', j: '#e86a9a', e: '#e8c13a' };
     let db, user, ref, uid, S = null, loaded = false, joined = false, lastAnim = 0, pendingColor = 'narancs', newCat = false;
@@ -352,7 +352,7 @@
     const clamp = v => Math.max(0, Math.min(100, v));
     function cur() {
       const m = (Date.now() - S.t) / 60000, r = {}; for (const k in RATE) r[k] = S.s[k] - RATE[k] * m;
-      const c = S.dead ? S.cause : r.h < -40 ? 'éhen halt' : r.t < -30 ? 'szomjan halt' : r.j < -60 ? 'bánatában halt meg' : S.ill && Date.now() - S.ill.t > 36e5 ? 'betegségben halt meg' : null;
+      const c = S.dead ? S.cause : r.h < -60 ? 'éhen halt' : r.t < -50 ? 'szomjan halt' : r.j < -100 ? 'bánatában halt meg' : S.ill && Date.now() - S.ill.t > 18e6 ? 'betegségben halt meg' : null;
       return { h: clamp(r.h), t: clamp(r.t), j: clamp(r.j), e: clamp(r.e), raw: r, fat: Math.max(0, (S.fat || 0) - 0.12 * m), dose: Math.max(0, (S.dose || 0) - m / 8), ill: S.ill || null, dead: !!c, cause: c }
     }
     const mix = (h, t) => { const n = parseInt(h.slice(1), 16); return '#' + [16, 8, 0].map(x => Math.round(((n >> x) & 255) * (1 - t) + 255 * t).toString(16).padStart(2, '0')).join('') };
@@ -447,7 +447,7 @@
     function revive() { newCat = true; render() }
     function medInfo(st) {
       let h = '';
-      if (st.ill) { const left = Math.max(0, 60 - Math.floor((Date.now() - st.ill.t) / 60000)); h += `<div style="margin:8px 0;padding:8px;border-radius:10px;background:var(--bar)">🤒 <b>${esc(st.ill.n)}</b><br><small>Gyógyszer: ${st.ill.p || 0}/${st.ill.need} adag • kb. ${left} perc van a kezelésre</small></div>` }
+      if (st.ill) { const left = Math.max(0, 300 - Math.floor((Date.now() - st.ill.t) / 60000)); h += `<div style="margin:8px 0;padding:8px;border-radius:10px;background:var(--bar)">🤒 <b>${esc(st.ill.n)}</b><br><small>Gyógyszer: ${st.ill.p || 0}/${st.ill.need} adag • kb. ${left} perc van a kezelésre</small></div>` }
       const d = st.dose; if (d > 0.05 || st.ill) h += `<div class="bar"><span>💊 Szint</span><i><b style="width:${Math.min(100, d / 3 * 100)}%;background:${d > 2 ? '#d33' : '#7b5cff'}"></b></i></div>${d > 2 ? '<small>⚠️ Újabb adag halálos lehet! Várj egy kicsit.</small>' : ''}`;
       return h
     }
@@ -461,7 +461,7 @@
     const DIS = [{ n: 'Macskanátha 🤧', need: 2 }, { n: 'Hasmenés 🤢', need: 3 }, { n: 'Bolhás bőrgyulladás 🐜', need: 2 }, { n: 'Szőrlabda-fennakadás 🧶', need: 3 }, { n: 'Tüdőgyulladás 🌡️', need: 4 }, { n: 'Fülgyulladás 👂', need: 2 }, { n: 'Macskainfluenza 🥶', need: 3 }];
     let wasDead = false, wasIll = ''; setInterval(() => {
       if (!S || !$('#bars') || pet.down) return; const st = cur();
-      if (!st.dead && !S.ill && (uid === S.owner || uid === S.partner) && Date.now() - (S.lastIll || S.made || 0) > 6e5) { const lo = Math.min(st.h, st.t, st.j) < 30; if (Math.random() < 0.006 + (lo ? 0.02 : 0) + (st.fat >= 75 ? 0.015 : 0)) { const d = DIS[Math.random() * DIS.length | 0]; ref.update({ ill: { n: d.n, need: d.need, p: 0, t: Date.now() }, lastIll: Date.now() }); return } }
+      if (!st.dead && !S.ill && (uid === S.owner || uid === S.partner) && Date.now() - (S.lastIll || S.made || 0) > 36e5) { const lo = Math.min(st.h, st.t, st.j) < 30; if (Math.random() < 0.0015 + (lo ? 0.004 : 0) + (st.fat >= 75 ? 0.003 : 0)) { const d = DIS[Math.random() * DIS.length | 0]; ref.update({ ill: { n: d.n, need: d.need, p: 0, t: Date.now() }, lastIll: Date.now() }); return } }
       if (st.dead !== wasDead || (st.ill ? st.ill.n : '') !== wasIll) render(); else $('#bars').innerHTML = bars(st)
     }, 5000);
     const PAL = ['#e0405a', '#ff9f43', '#ffd23a', '#4cd964', '#2aa5ff', '#7b5cff', '#ff7ac6', '#ffffff', '#222222', '#8b5a2b', '#9aa0a6', '#00c2a8'];
